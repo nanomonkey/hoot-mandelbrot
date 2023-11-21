@@ -78,7 +78,7 @@
          (error "expected hash table" table))
        (%inline-wasm
         '(func (param $table (ref eq)) (param $key (ref eq)) (result (ref eq))
-               (call $weak-map-get
+               (call $weak-map-get-scm
                      (struct.get $weak-table $val
                                  (ref.cast $weak-table (local.get $table)))
                      (local.get $key)))
@@ -240,7 +240,7 @@
                                 ;; Remove all children including the current one.
                                 (()
                                  (let rem-loop ((node (current-node walker)))
-                                   (when node
+                                   (unless (external-null? node)
                                      (let ((next (next-sibling! walker)))
                                        (remove! node)
                                        (rem-loop next)))))
@@ -273,7 +273,7 @@
                   (if (eq? task task*)
                       rest
                       (cons task* (loop rest))))))))
-     (define (replace-task! old-task new-task)
+     (define (update-task! old-task new-task)
        (set! *tasks*
              (let loop ((tasks *tasks*))
                (match tasks
@@ -283,29 +283,33 @@
                       (cons old-task (loop rest))
                       (cons task (loop rest))))))))
      (define (template)
-       (define (render-task task)
+       (define (task-template task)
          `(li (input (@ (type "checkbox")
+                        ;; Toggle done? flag on click.
                         (click ,(lambda (event)
-                                  (replace-task! task (toggle-task task))
+                                  (update-task! task (toggle-task task))
                                   (render)))
+                        ;; Checked if task is done.
                         ,@(if (task-done? task)
                               '((checked ""))
                               '())))
-              " "
-              ,(if (task-done? task)
-                   `(s ,(task-name task))
-                   (task-name task))
-              " "
+              (span (@ (style "padding: 0 1em 0 1em;"))
+                    ;; Strikethrough if task is done.
+                    ,(if (task-done? task)
+                         `(s ,(task-name task))
+                         (task-name task)))
               (a (@ (href "#")
+                    ;; Remove task on click.
                     (click ,(lambda (event)
                               (remove-task! task)
                               (render))))
                  "remove")))
        `(div
          (h2 "Tasks")
-         (ul ,@(map render-task *tasks*))
+         (ul ,@(map task-template *tasks*))
          (input (@ (id "new-task")
                    (placeholder "Write more Scheme")))
+         ;; Add new task on click
          (button (@ (click ,(lambda (event)
                               (let* ((input (get-element-by-id "new-task"))
                                      (name (element-value input)))

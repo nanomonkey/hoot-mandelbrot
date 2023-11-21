@@ -14,3 +14,6 @@ todo.wasm: todo.scm
 
 serve:
 	guile web-server.scm
+
+clean:
+	rm *.wasm

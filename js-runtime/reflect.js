@@ -435,7 +435,10 @@ class SchemeModule {
         string_downcase: Function.call.bind(String.prototype.toLowerCase),
 
         make_weak_map() { return new WeakMap; },
-        weak_map_get(map, k) { return map.get(k) || null; },
+        weak_map_get(map, k) {
+            const val = map.get(k);
+            return val === undefined ? null: val;
+        },
         weak_map_set(map, k, v) { return map.set(k, v); },
         weak_map_delete(map, k) { return map.delete(k); },
 
@@ -451,7 +454,7 @@ class SchemeModule {
         fexp: Math.exp,
 
         jiffies_per_second() { return 1000; },
-        current_jiffy() { return BigInt(Math.floor(performance.now())); },
+        current_jiffy() { return performance.now(); },
         current_second() { return Date.now() / 1000; },
 
         // Wrap in functions to allow for lazy loading of the wtf8

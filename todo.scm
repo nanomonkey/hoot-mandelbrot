@@ -81,7 +81,8 @@
                (call $weak-map-get-scm
                      (struct.get $weak-table $val
                                  (ref.cast $weak-table (local.get $table)))
-                     (local.get $key)))
+                     (local.get $key)
+                     (ref.i31 (i32.const 1))))
         (unwrap-weak-map table) key))
      (define (hashq-set! table key value)
        (unless (weak-key-hash-table? table)

@@ -12,7 +12,7 @@
              (gnu packages texinfo))
 
 (define guile-next-next
-  (let ((commit "d579848cb5d65440af5afd9c8968628665554c22")
+  (let ((commit "d7cf5bf373392a18e9a4de06f751eae3d66ce1af")
         (revision "1"))
     (package
      (inherit guile-next)
@@ -25,10 +25,10 @@
              (commit commit)))
        (file-name (git-file-name "guile" version))
        (sha256
-        (base32 "14a6wpjfsis11l36xjqvq52mbk2m6zdjvw9nba0p916k0pyqr8dm")))))))
+        (base32 "05irlc0q7jlx5n5c7xm3cd35azgwyngkdzf46ngs1alnlxibc6kh")))))))
 
 (define guile-hoot
-  (let ((commit "f52d3ea0bffc1b0aad897a53dca073293ce2d1fb")
+  (let ((commit "06ffffb38fff2bf7671e60fcba4c8d25c581d459")
         (revision "1"))
     (package
       (name "guile-hoot")
@@ -40,7 +40,7 @@
                       (commit commit)))
                 (file-name (git-file-name "guile-hoot" version))
                 (sha256
-                 (base32 "1yyf5i2zbqbmpm094l3xgl4zizq7vjmc58frrcbi7qah7r2wkj3f"))))
+                 (base32 "1cxq24w0bd0w6vc2in67k73pr6zi29riyj1kfgaa9p46khm0fcsl"))))
       (build-system gnu-build-system)
       (arguments
        '(#:make-flags '("GUILE_AUTO_COMPILE=0")

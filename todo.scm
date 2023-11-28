@@ -61,6 +61,7 @@
      (define-foreign next-sibling!
        "treeWalker" "nextSibling"
        (ref null extern) -> (ref null extern))
+
      ;; Hoot doesn't have a hash table interface yet.
      (define-record-type <weak-key-hash-table>
        (wrap-weak-map extern)
@@ -102,10 +103,12 @@
                (let ((f (procedure->external proc)))
                  (hashq-set! cache proc f)
                  f)))))
+
      (define (add-event-listener!/wrap elem name proc)
        (add-event-listener! elem name (procedure->external/cached proc)))
      (define (remove-event-listener!/wrap elem name proc)
        (remove-event-listener! elem name (procedure->external/cached proc)))
+
      (define (sxml->dom exp)
        (match exp
          ((? string? str)
@@ -131,6 +134,7 @@
                (add-children children))
               (children (add-children children)))
             elem))))
+
      (define (virtual-dom-render root old new)
        (define (attrs+children exp)
          (match exp
@@ -194,8 +198,9 @@
                     (new new))
            (match old
              (#f
-              ;; It's the first render, so clear out whatever might be in
-              ;; the actual DOM and splat our tree in.
+              ;; It's the first render, so clear out whatever might be
+              ;; in the actual DOM and render the entire tree.  No
+              ;; diffing necessary.
               (let loop ((node (current-node walker)))
                 (unless (external-null? node)
                   (let ((next (next-sibling! walker)))
@@ -203,8 +208,9 @@
                     (loop next))))
               (append-child! parent (sxml->dom new)))
              ((? string?)
-              ;; Maybe replace text node with either a new text node or
-              ;; an element subtree.
+              ;; Replace text node with either a new text node if the
+              ;; text has changed, or an element subtree if the text
+              ;; has been replaced by an element.
               (unless (and (string? new) (string-=? old new))
                 (let ((new-node (sxml->dom new)))
                   (replace-with! (current-node walker) new-node)
@@ -214,7 +220,9 @@
                             (attrs+children old-rest)))
                 (match new
                   ((? string?)
-                   ;; Replace element subtree with text node.
+                   ;; Old node was an element, but the new node is a
+                   ;; string, so replace the element subtree with a
+                   ;; text node.
                    (let ((new-text (make-text-node new)))
                      (replace-with! (current-node walker) new-text)
                      (set-current-node! walker new-text)))
@@ -222,7 +230,8 @@
                    (let-values (((new-attrs new-children)
                                  (attrs+children new-rest)))
                      (cond
-                      ;; Same tag, modify element if necessary.
+                      ;; The element tag is the same, so modify the
+                      ;; inner contents of the element if necessary.
                       ((eq? old-tag new-tag)
                        (let ((parent (current-node walker)))
                          (update-attrs parent old-attrs new-attrs)
@@ -231,40 +240,54 @@
                                           (new new-children))
                            (match old
                              (()
-                              ;; Splat in the remaining new children.
+                              ;; The old child list is empty, so
+                              ;; diffing stops here.  All remaining
+                              ;; children in the new list are fresh
+                              ;; elements that need to be added.
                               (for-each
                                (lambda (new)
                                  (append-child! parent (sxml->dom new)))
                                new))
                              ((old-child . old-rest)
                               (match new
-                                ;; Remove all children including the current one.
+                                ;; The new child list is empty, so any
+                                ;; remaining children in the old child
+                                ;; list need to be removed, including
+                                ;; the current one.
                                 (()
                                  (let rem-loop ((node (current-node walker)))
                                    (unless (external-null? node)
                                      (let ((next (next-sibling! walker)))
                                        (remove! node)
                                        (rem-loop next)))))
-                                ;; Diff old and new.
+                                ;; Recursively diff old and new child
+                                ;; elements.
                                 ((new-child . new-rest)
                                  (loop parent old-child new-child)
                                  (next-sibling! walker)
                                  (child-loop old-rest new-rest))))))
                          (set-current-node! walker parent)))
-                      ;; Different tag, replace entire subtree.
+                      ;; New element tag is different than the old
+                      ;; one, so replace the entire element subtree.
                       (else
                        (replace-with! (current-node walker)
                                       (sxml->dom new)))))))))))))
+
+     ;; Tasks:
      (define-record-type <task>
        (make-task name done?)
        task?
        (name task-name)
-       (done? task-done?))
-     (define (toggle-task task)
-       (make-task (task-name task) (not (task-done? task))))
+       (done? task-done? set-task-done!))
+
+     (define (toggle-task! task)
+       (set-task-done! task (not (task-done? task))))
+
      (define *tasks* '())
+
      (define (add-task! task)
        (set! *tasks* (reverse (cons task (reverse *tasks*)))))
+
      (define (remove-task! task)
        (set! *tasks*
              (let loop ((tasks *tasks*))
@@ -274,23 +297,16 @@
                   (if (eq? task task*)
                       rest
                       (cons task* (loop rest))))))))
-     (define (update-task! old-task new-task)
-       (set! *tasks*
-             (let loop ((tasks *tasks*))
-               (match tasks
-                 (() '())
-                 ((task . rest)
-                  (if (eq? old-task task)
-                      (cons old-task (loop rest))
-                      (cons task (loop rest))))))))
+
      (define (template)
        (define (task-template task)
          `(li (input (@ (type "checkbox")
                         ;; Toggle done? flag on click.
                         (click ,(lambda (event)
-                                  (update-task! task (toggle-task task))
+                                  (toggle-task! task)
                                   (render)))
-                        ;; Checked if task is done.
+                        ;; Apply the "checked" attribute if the task
+                        ;; is done.
                         ,@(if (task-done? task)
                               '((checked ""))
                               '())))
@@ -319,11 +335,14 @@
                                   (set-element-value! input "")
                                   (render))))))
                  "Add task")))
+
      (define *current-vdom* #f)
+
      (define (render)
        (let ((new-vdom (template)))
          (virtual-dom-render (document-body) *current-vdom* new-vdom)
          (set! *current-vdom* new-vdom)))
+
      (render)))
 
 (call-with-output-file "todo.wasm"

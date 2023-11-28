@@ -19,26 +19,35 @@
      (define-foreign set-attribute!
        "element" "setAttribute"
        (ref null extern) (ref string) (ref string) -> none)
-     (define (render-sxml exp)
+     (define (sxml->dom exp)
        (match exp
+         ;; The simple case: a string representing a text node.
          ((? string? str)
           (make-text-node str))
+         ;; An element tree.  The first item is the HTML tag.
          (((? symbol? tag) . body)
+          ;; Create a new element with the given tag.
           (let ((elem (make-element (symbol->string tag))))
             (define (add-children children)
+              ;; Recursively call sxml->dom for each child node and
+              ;; append it to elem.
               (for-each (lambda (child)
-                          (append-child! elem (render-sxml child)))
+                          (append-child! elem (sxml->dom child)))
                         children))
             (match body
+              ;; '@' denotes an attribute list.  Child nodes follow.
               ((('@ . attrs) . children)
+               ;; Set attributes.
                (for-each (lambda (attr)
                            (match attr
+                             ;; Attributes are (symbol string) tuples.
                              (((? symbol? name) (? string? val))
                               (set-attribute! elem
                                               (symbol->string name)
                                               val))))
                          attrs)
                (add-children children))
+              ;; No attributes, just a list of child nodes.
               (children (add-children children)))
             elem))))
      (define sxml
@@ -48,7 +57,7 @@
          (small "Made with "
                 (a (@ (href "https://spritely.institute/hoot"))
                    "Guile Hoot"))))
-     (append-child! (document-body) (render-sxml sxml))))
+     (append-child! (document-body) (sxml->dom sxml))))
 
 (call-with-output-file "sxml.wasm"
   (lambda (port)

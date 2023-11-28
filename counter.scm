@@ -28,7 +28,7 @@
      (define-foreign set-attribute!
        "element" "setAttribute"
        (ref null extern) (ref string) (ref string) -> none)
-     (define (render-sxml exp)
+     (define (sxml->dom exp)
        (match exp
          ((? string? str)
           (make-text-node str))
@@ -36,7 +36,7 @@
           (let ((elem (make-element (symbol->string tag))))
             (define (add-children children)
               (for-each (lambda (child)
-                          (append-child! elem (render-sxml child)))
+                          (append-child! elem (sxml->dom child)))
                         children))
             (match body
               ((('@ . attrs) . children)
@@ -46,7 +46,6 @@
                               (set-attribute! elem
                                               (symbol->string name)
                                               val))
-                             ;; This is the new bit.
                              (((? symbol? name) (? procedure? proc))
                               (add-event-listener! elem
                                                    (symbol->string name)
@@ -66,7 +65,7 @@
      (define (render)
        (let ((old (get-element-by-id "container")))
          (unless (external-null? old) (remove! old)))
-       (append-child! (document-body) (render-sxml (template))))
+       (append-child! (document-body) (sxml->dom (template))))
      (render)))
 
 (call-with-output-file "counter.wasm"

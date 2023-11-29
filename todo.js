@@ -10,6 +10,8 @@ window.addEventListener("load", function() {
     element: {
       value(elem) { return elem.value; },
       setValue(elem, value) { elem.value = value; },
+      checked(elem) { return elem.checked; },
+      setChecked(elem, checked) { elem.checked = (checked == 1); },
       setAttribute(elem, name, value) { elem.setAttribute(name, value); },
       removeAttribute(elem, name) { elem.removeAttribute(name); },
       appendChild(parent, child) { return parent.appendChild(child); },
@@ -17,6 +19,9 @@ window.addEventListener("load", function() {
       replaceWith(oldElem, newElem) { oldElem.replaceWith(newElem); },
       addEventListener(elem, name, f) { elem.addEventListener(name, f); },
       removeEventListener(elem, name, f) { elem.removeEventListener(name, f); }
+    },
+    event: {
+      target(event) { return event.target; }
     },
     treeWalker: {
       currentNode(walker) { return walker.currentNode; },

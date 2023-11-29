@@ -19,12 +19,21 @@
      (define-foreign make-tree-walker
        "document" "createTreeWalker"
        (ref null extern) -> (ref null extern))
+
      (define-foreign element-value
        "element" "value"
        (ref null extern) -> (ref string))
      (define-foreign set-element-value!
        "element" "setValue"
        (ref null extern) (ref string) -> none)
+     (define-foreign %element-checked?
+       "element" "checked"
+       (ref null extern) -> i32)
+     (define (element-checked? elem)
+       (= (%element-checked? elem) 1))
+     (define-foreign set-element-checked!
+       "element" "setChecked"
+       (ref null extern) i32 -> none)
      (define-foreign add-event-listener!
        "element" "addEventListener"
        (ref null extern) (ref string) (ref null extern) -> none)
@@ -46,6 +55,11 @@
      (define-foreign remove-attribute!
        "element" "removeAttribute"
        (ref null extern) (ref string) -> none)
+
+     (define-foreign event-target
+       "event" "target"
+       (ref null extern) -> (ref null extern))
+
      (define-foreign current-node
        "treeWalker" "currentNode"
        (ref null extern) -> (ref null extern))
@@ -109,6 +123,17 @@
      (define (remove-event-listener!/wrap elem name proc)
        (remove-event-listener! elem name (procedure->external/cached proc)))
 
+     (define (set-attribute!* elem name val)
+       (if (string-=? name "checked")
+           ;; Special case for input 'checked' attribute.  Instead of
+           ;; setting an attribute, we set the property.  It's a hack,
+           ;; but fine for this little demo.
+           (set-element-checked! elem (if val 1 0))
+           (set-attribute! elem name val)))
+
+     (define (attr-value? x)
+       (or (string? x) (boolean? x)))
+
      (define (sxml->dom exp)
        (match exp
          ((? string? str)
@@ -123,10 +148,10 @@
               ((('@ . attrs) . children)
                (for-each (lambda (attr)
                            (match attr
-                             (((? symbol? name) (? string? val))
-                              (set-attribute! elem
-                                              (symbol->string name)
-                                              val))
+                             (((? symbol? name) (? attr-value? val))
+                              (set-attribute!* elem
+                                               (symbol->string name)
+                                               val))
                              (((? symbol? name) (? procedure? proc))
                               (let ((name* (symbol->string name)))
                                 (add-event-listener!/wrap elem name* proc)))))
@@ -161,16 +186,16 @@
                    ;; No existing attr/listener, add new one.
                    (#f
                     (match val
-                      ((? string?)
-                       (set-attribute! node name-str val))
+                      ((? attr-value?)
+                       (set-attribute!* node name-str val))
                       ((? procedure?)
                        (add-event-listener!/wrap node name-str val))))
                    ;; Replace old attr or listener with new.
                    (old-val
                     (match val
-                      ((? string?)
-                       (unless (string-=? old-val val)
-                         (set-attribute! node name-str val)))
+                      ((? attr-value?)
+                       (unless (equal? old-val val)
+                         (set-attribute!* node name-str val)))
                       ((? procedure?)
                        (unless (eq? old-val val)
                          (remove-event-listener!/wrap node name-str old-val)
@@ -185,7 +210,7 @@
                  (match (find-attr new-attrs name)
                    (#f
                     (match val
-                      ((? string?)
+                      ((? attr-value?)
                        (remove-attribute! node name-str))
                       ((? procedure?)
                        (remove-event-listener! node name-str val))))
@@ -273,6 +298,14 @@
                        (replace-with! (current-node walker)
                                       (sxml->dom new)))))))))))))
 
+     (define (delq item lst)
+       (match lst
+         (() '())
+         ((x . rest)
+          (if (eq? x item)
+              rest
+              (cons x (delq item rest))))))
+
      ;; Tasks:
      (define-record-type <task>
        (make-task name done?)
@@ -280,36 +313,25 @@
        (name task-name)
        (done? task-done? set-task-done!))
 
-     (define (toggle-task! task)
-       (set-task-done! task (not (task-done? task))))
-
      (define *tasks* '())
 
      (define (add-task! task)
-       (set! *tasks* (reverse (cons task (reverse *tasks*)))))
+       (set! *tasks* (cons task *tasks*)))
 
      (define (remove-task! task)
-       (set! *tasks*
-             (let loop ((tasks *tasks*))
-               (match tasks
-                 (() '())
-                 ((task* . rest)
-                  (if (eq? task task*)
-                      rest
-                      (cons task* (loop rest))))))))
+       (set! *tasks* (delq task *tasks*)))
 
      (define (template)
        (define (task-template task)
          `(li (input (@ (type "checkbox")
                         ;; Toggle done? flag on click.
-                        (click ,(lambda (event)
-                                  (toggle-task! task)
-                                  (render)))
-                        ;; Apply the "checked" attribute if the task
-                        ;; is done.
-                        ,@(if (task-done? task)
-                              '((checked ""))
-                              '())))
+                        (change ,(lambda (event)
+                                   (let* ((checkbox (event-target event))
+                                          (checked? (element-checked? checkbox)))
+                                     (set-task-done! task checked?)
+                                     (render))))
+                        ;; Check the box if task is done.
+                        (checked ,(task-done? task))))
               (span (@ (style "padding: 0 1em 0 1em;"))
                     ;; Strikethrough if task is done.
                     ,(if (task-done? task)
@@ -323,7 +345,8 @@
                  "remove")))
        `(div
          (h2 "Tasks")
-         (ul ,@(map task-template *tasks*))
+         ;; Tasks are stored in reverse order.
+         (ul ,@(map task-template (reverse *tasks*)))
          (input (@ (id "new-task")
                    (placeholder "Write more Scheme")))
          ;; Add new task on click

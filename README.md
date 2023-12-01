@@ -16,7 +16,7 @@ manifest file that can be used to setup the environment.  Once Guix is
 installed, just run:
 
 ```
-guix shell -m guix.scm
+guix shell -m manifest.scm
 ```
 
 Guile in particular takes a long time to build so expect to wait

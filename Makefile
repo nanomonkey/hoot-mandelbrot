@@ -12,7 +12,7 @@ counter.wasm: counter.scm
 todo.wasm: todo.scm
 	guile todo.scm
 
-serve:
+serve: *.wasm
 	guile web-server.scm
 
 clean:

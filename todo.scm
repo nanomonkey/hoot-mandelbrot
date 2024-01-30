@@ -76,46 +76,12 @@
        "treeWalker" "nextSibling"
        (ref null extern) -> (ref null extern))
 
-     ;; Hoot doesn't have a hash table interface yet.
-     (define-record-type <weak-key-hash-table>
-       (wrap-weak-map extern)
-       weak-key-hash-table?
-       (extern unwrap-weak-map))
-     (define (make-weak-key-hash-table)
-       (wrap-weak-map
-        (%inline-wasm
-         '(func (result (ref eq))
-                (struct.new $weak-table
-                            (i32.const 0)
-                            (call $make-weak-map))))))
-     (define (hashq-ref table key)
-       (unless (weak-key-hash-table? table)
-         (error "expected hash table" table))
-       (%inline-wasm
-        '(func (param $table (ref eq)) (param $key (ref eq)) (result (ref eq))
-               (call $weak-map-get-scm
-                     (struct.get $weak-table $val
-                                 (ref.cast $weak-table (local.get $table)))
-                     (local.get $key)
-                     (ref.i31 (i32.const 1))))
-        (unwrap-weak-map table) key))
-     (define (hashq-set! table key value)
-       (unless (weak-key-hash-table? table)
-         (error "expected hash table" table))
-       (%inline-wasm
-        '(func (param $table (ref eq)) (param $key (ref eq)) (param $val (ref eq))
-               (call $weak-map-set
-                     (struct.get $weak-table $val
-                                 (ref.cast $weak-table (local.get $table)))
-                     (local.get $key)
-                     (local.get $val)))
-        (unwrap-weak-map table) key value))
      (define procedure->external/cached
-       (let ((cache (make-weak-key-hash-table)))
+       (let ((cache (make-weak-key-hashtable)))
          (lambda (proc)
-           (or (hashq-ref cache proc)
+           (or (weak-key-hashtable-ref cache proc)
                (let ((f (procedure->external proc)))
-                 (hashq-set! cache proc f)
+                 (weak-key-hashtable-set! cache proc f)
                  f)))))
 
      (define (add-event-listener!/wrap elem name proc)
@@ -124,7 +90,7 @@
        (remove-event-listener! elem name (procedure->external/cached proc)))
 
      (define (set-attribute!* elem name val)
-       (if (string-=? name "checked")
+       (if (string=? name "checked")
            ;; Special case for input 'checked' attribute.  Instead of
            ;; setting an attribute, we set the property.  It's a hack,
            ;; but fine for this little demo.
@@ -236,7 +202,7 @@
               ;; Replace text node with either a new text node if the
               ;; text has changed, or an element subtree if the text
               ;; has been replaced by an element.
-              (unless (and (string? new) (string-=? old new))
+              (unless (and (string? new) (string=? old new))
                 (let ((new-node (sxml->dom new)))
                   (replace-with! (current-node walker) new-node)
                   (set-current-node! walker new-node))))
@@ -353,7 +319,7 @@
          (button (@ (click ,(lambda (event)
                               (let* ((input (get-element-by-id "new-task"))
                                      (name (element-value input)))
-                                (unless (string-=? name "")
+                                (unless (string=? name "")
                                   (add-task! (make-task name #f))
                                   (set-element-value! input "")
                                   (render))))))

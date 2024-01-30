@@ -20,7 +20,8 @@ class Complex {
         this.imag = imag;
     }
     toString() {
-        return `${flonum_to_string(this.real)}+${flonum_to_string(this.imag)}i`;
+        const sign = this.imag >= 0 && Number.isFinite(this.imag) ? "+": "";
+        return `${flonum_to_string(this.real)}${sign}${flonum_to_string(this.imag)}i`;
     }
 }
 class Fraction {
@@ -106,7 +107,7 @@ class MutableBitvector extends Bitvector {
 
 class MutableString extends HeapObject {
     toString() { return "#<mutable-string>"; }
-    repr() { return this.reflector.string_value(this); }
+    repr() { return string_repr(this.reflector.string_value(this)); }
 }
 
 class Procedure extends HeapObject {
@@ -325,6 +326,11 @@ class SchemeTrapError extends Error {
     toString() { return `SchemeTrap(${this.tag}, <data>)`; }
 }
 
+function string_repr(str) {
+    // FIXME: Improve to match Scheme.
+    return '"' + str.replace(/(["\\])/g, '\\$1').replace(/\n/g, '\\n') + '"';
+}
+
 function flonum_to_string(f64) {
     if (Object.is(f64, -0)) {
         return '-0.0';
@@ -435,9 +441,9 @@ class SchemeModule {
         string_downcase: Function.call.bind(String.prototype.toLowerCase),
 
         make_weak_map() { return new WeakMap; },
-        weak_map_get(map, k) {
+        weak_map_get(map, k, fail) {
             const val = map.get(k);
-            return val === undefined ? null: val;
+            return val === undefined ? fail: val;
         },
         weak_map_set(map, k, v) { return map.set(k, v); },
         weak_map_delete(map, k) { return map.delete(k); },
@@ -453,8 +459,8 @@ class SchemeModule {
         flog: Math.log,
         fexp: Math.exp,
 
-        jiffies_per_second() { return 1000; },
-        current_jiffy() { return performance.now(); },
+        jiffies_per_second() { return 1000000; },
+        current_jiffy() { return performance.now() * 1000; },
         current_second() { return Date.now() / 1000; },
 
         // Wrap in functions to allow for lazy loading of the wtf8
@@ -557,7 +563,6 @@ function repr(obj) {
     if (typeof obj === 'number')
         return flonum_to_string(obj);
     if (typeof obj === 'string')
-        // FIXME: Improve to match Scheme.
-        return '"' + obj.replace(/(["\\])/g, '\\$1').replace(/\n/g, '\\n') + '"';
+        return string_repr(obj);
     return obj + '';
 }
